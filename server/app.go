@@ -8,10 +8,9 @@ import (
 	"path"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	tosapp "github.com/LuYifei2011/tos-app-kit/go"
-	appconfig "tos-app-template"
+	appconfig "tos-symbolic-link-manager"
 )
 
 type application struct {
@@ -19,6 +18,8 @@ type application struct {
 	web    string
 	dev    bool
 	verify tosapp.SessionVerifier
+	roots  []string
+	client *http.Client
 }
 
 func localRequest(r *http.Request) bool {
@@ -49,6 +50,7 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, &apiError{403, "ORIGIN_MISMATCH"})
 		return
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	p := tosapp.StripAppPrefix(r.URL.Path, a.config.ID)
 	if p != "/api" && !strings.HasPrefix(p, "/api/") {
 		a.serveStatic(w, r, p)
@@ -61,9 +63,13 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !a.dev {
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 		defer cancel()
 		r = r.WithContext(ctx)
+		if a.verify == nil {
+			writeFailure(w, &apiError{503, "PLATFORM_UNAVAILABLE"})
+			return
+		}
 		if _, err := tosapp.Authenticate(r, a.verify); err != nil {
 			writeFailure(w, err)
 			return
@@ -79,18 +85,8 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			mode = "development"
 		}
 		tosapp.WriteJSON(w, 200, map[string]string{"id": a.config.ID, "version": a.config.Version, "mode": mode})
-	case "/api/echo":
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var body struct {
-			Message string `json:"message"`
-		}
-		if tosapp.DecodeJSON(w, r, &body, 4096) != nil || !utf8.ValidString(body.Message) || utf8.RuneCountInString(body.Message) > 200 || strings.TrimSpace(body.Message) == "" {
-			writeFailure(w, &apiError{400, "MESSAGE_INVALID"})
-			return
-		}
-		tosapp.WriteJSON(w, 200, map[string]string{"message": body.Message})
+	case "/api/files/list", "/api/files/stat", "/api/scan", "/api/links/create", "/api/links/update", "/api/links/rename", "/api/links/delete":
+		a.handleFiles(w, r, p)
 	default:
 		writeFailure(w, &apiError{404, "ENDPOINT_NOT_FOUND"})
 	}

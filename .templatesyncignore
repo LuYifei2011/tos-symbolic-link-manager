@@ -5,8 +5,6 @@
 :!tests/test_template.py
 :!tests/test_template_sync.py
 :!packaging/debian/**
-:!packaging/service.in
-:!packaging/socket.in
 :!.go-version
 :!.govulncheck-version
 :!.gitattributes

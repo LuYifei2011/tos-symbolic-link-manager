@@ -6,12 +6,13 @@ export const metadata = { id: manifest.id, version: manifest.version, name: mani
 export const core = createTosApp({
   id: metadata.id,
   version: metadata.version,
+  files: true,
   // Vite has no TOS preference endpoint; installed builds use the platform readers.
   preferences: import.meta.env.DEV ? { readTheme: async () => null, readLanguage: async () => null } : {},
   api: {
     blockOnAccessFailure: true,
     onAccessFailure: error => { if (error.kind === 'session') location.assign('/tos/') },
-    diagnosticPath: path => ['/info', '/echo'].includes(path) ? path : '/:endpoint',
+    diagnosticPath: path => ['/info', '/scan', '/files/list', '/files/stat', '/links/create', '/links/update', '/links/rename', '/links/delete'].includes(path) ? path : '/:endpoint',
   },
 })
 export const tos = createTosAppVue(core)

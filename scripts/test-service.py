@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the packaged service only on an isolated GitHub Actions Linux runner."""
 import argparse
+import grp
 import http.client
 import os
 from pathlib import Path
@@ -43,13 +44,27 @@ def main():
         parser.exit(1, "Refusing to replace an existing application or account\n")
     package = str(args.package.resolve())
     created_account = False
+    created_group = False
+    primary_group = app_id + "-runtime"
+    for name in (app_id, primary_group):
+        if run("getent", "group", name, check=False).returncode == 0:
+            parser.exit(1, f"Refusing to replace existing group {name}\n")
     try:
         run("dpkg", "--install", package)
         assert not (app / "data").exists(), "data initialization must wait for the TOS account"
         assert (app / "site/index.html").is_file()
-        run("useradd", "--system", "--user-group", "--no-create-home", "--shell", "/usr/sbin/nologin", app_id)
+        # postinst must provision the group before the platform creates its user.
+        installed_gid = grp.getgrnam(app_id).gr_gid
+        assert installed_gid > 0
+        assert run("id", app_id, check=False).returncode != 0
+        # Match TOS accounts whose primary group differs from the dedicated group.
+        run("groupadd", "--system", primary_group)
+        created_group = True
+        run("useradd", "--system", "--no-user-group", "--gid", primary_group, "--no-create-home", "--shell", "/usr/sbin/nologin", app_id)
         created_account = True
         account = pwd.getpwnam(app_id)
+        assert account.pw_gid == grp.getgrnam(primary_group).gr_gid
+        assert grp.getgrnam(app_id).gr_gid == installed_gid
         run("systemctl", "reset-failed", service, sock_unit)
         run("systemctl", "start", service)
         wait_state(service, "active")
@@ -66,6 +81,12 @@ def main():
         assert data.stat().st_uid == account.pw_uid and data.stat().st_mode & 0o777 == 0o700
         pid = int(run("systemctl", "show", "--property=MainPID", "--value", service).stdout)
         assert Path(f"/proc/{pid}").stat().st_uid == account.pw_uid
+        dedicated_gid = grp.getgrnam(app_id).gr_gid
+        assert dedicated_gid == installed_gid and dedicated_gid != account.pw_gid
+        assert Path(f"/proc/{pid}").stat().st_gid == dedicated_gid
+        assert data.stat().st_gid == account.pw_gid
+        assert socket_path.stat().st_uid == account.pw_uid
+        assert socket_path.stat().st_gid == dedicated_gid
         assert socket_path.stat().st_mode & 0o777 == 0o660
         record = data / "retain.txt"
         record.write_text("user data")
@@ -85,6 +106,7 @@ def main():
         (app / "site/stale.js").write_text("old frontend")
         run("dpkg", "--install", package)
         wait_state(service, "active")
+        assert grp.getgrnam(app_id).gr_gid == installed_gid
         assert not (app / "site/stale.js").exists()
         assert record.read_text() == "user data"
         run("dpkg", "--remove", app_id)
@@ -93,7 +115,7 @@ def main():
         assert record.read_text() == "user data"
         assert run("systemctl", "is-enabled", service, check=False).returncode != 0
         assert run("systemctl", "is-enabled", sock_unit, check=False).returncode != 0
-        print("PASS systemd: delayed account, non-root HTTP, socket, unsafe data rejection, recovery, upgrade, removal")
+        print("PASS systemd: install-time group provisioning, delayed account, dedicated GID, non-root HTTP, socket ownership, unsafe data rejection, recovery, upgrade, removal")
     except Exception:
         print(run("journalctl", "-u", service, "-n", "80", "--no-pager", check=False).stdout, file=sys.stderr)
         raise
@@ -102,6 +124,10 @@ def main():
         run("dpkg", "--purge", app_id, check=False)
         if created_account:
             run("userdel", app_id, check=False)
+        if created_group:
+            run("groupdel", primary_group, check=False)
+        # The application group is deliberately retained on uninstall for existing data.
+        run("groupdel", app_id, check=False)
         if app.is_dir() and not app.is_symlink():
             shutil.rmtree(app)
 

@@ -9,6 +9,23 @@ configure)
             exit 1
         fi
     done
+    # TOS creates the user, potentially after postinst. Prepare the dedicated
+    # group now so Group=/SocketGroup= can resolve when TOS enables the app.
+    if group_record=$(getent group @APP_ID@); then
+        :
+    else
+        lookup_status=$?
+        if [ "$lookup_status" != 2 ]; then
+            echo "@APP_ID@: group lookup failed ($lookup_status)" >&2
+            exit "$lookup_status"
+        fi
+        groupadd --system @APP_ID@
+        group_record=$(getent group @APP_ID@)
+    fi
+    IFS=: read -r group_name group_password group_gid group_members <<< "$group_record"
+    case "$group_gid" in
+        ''|0|*[!0-9]*) echo "@APP_ID@: dedicated group must have a non-root GID" >&2; exit 1 ;;
+    esac
     if [ -d "$app/site.previous" ] && [ ! -d "$app/site" ]; then mv "$app/site.previous" "$app/site"; fi
     rm -rf -- "$app/site.next" "$app/site.previous"
     install -d -m 0755 "$app/site.next"

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	tosapp "github.com/LuYifei2011/tos-app-kit/go"
-	appconfig "tos-app-template"
+	appconfig "tos-symbolic-link-manager"
 )
 
 func testApp(t *testing.T) *application {
@@ -71,7 +71,7 @@ func TestAuthenticationRejectsBeforeBusinessHandler(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			a := testApp(t)
-			r := request("POST", "/api/echo", `{"message":"secret"}`)
+			r := request("POST", "/api/scan", `{"message":"secret"}`)
 			test.mutate(r, a)
 			w := httptest.NewRecorder()
 			a.ServeHTTP(w, r)
@@ -82,31 +82,9 @@ func TestAuthenticationRejectsBeforeBusinessHandler(t *testing.T) {
 	}
 }
 
-func TestEchoValidationAndMethods(t *testing.T) {
-	a := testApp(t)
-	for _, test := range []struct {
-		method, body string
-		status       int
-	}{
-		{"POST", `{"message":"你好 <script>"}`, 200},
-		{"POST", `{"message":" "}`, 400},
-		{"POST", `{"message":"ok","unknown":true}`, 400},
-		{"POST", `{"message":"ok"} {}`, 400},
-		{"POST", `{"message":"` + strings.Repeat("a", 201) + `"}`, 400},
-		{"POST", strings.Repeat("x", 5000), 400},
-		{"GET", "", 405},
-	} {
-		w := httptest.NewRecorder()
-		a.ServeHTTP(w, request(test.method, "/api/echo", test.body))
-		if w.Code != test.status {
-			t.Fatalf("%s %s: %d %s", test.method, test.body[:min(30, len(test.body))], w.Code, w.Body.String())
-		}
-	}
-}
-
 func TestPreflightWithoutSession(t *testing.T) {
 	a := testApp(t)
-	r := request("OPTIONS", "/api/echo", "")
+	r := request("OPTIONS", "/api/scan", "")
 	r.Header.Del("Cookie")
 	r.Header.Del("X-Csrf-Token")
 	w := httptest.NewRecorder()

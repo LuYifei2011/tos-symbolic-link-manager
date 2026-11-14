@@ -1,39 +1,42 @@
-# TOS 应用模板
+# TOS 符号链接管理器
 
-面向 TOS 7 的 Vue 3 + TypeScript + Go 应用起点，直接依赖已发布的 [TOS App Kit](https://github.com/LuYifei2011/tos-app-kit)。模板包含可运行的请求示例、语言与主题设置、连接诊断、TOS 会话验证、Unix socket 服务以及 amd64 / arm64 Deb 打包。
+面向 TOS 7 的符号链接管理工具，使用 Vue 3、TypeScript、Go 和 TOS App Kit。应用 ID 为 `symlink-manager`，当前版本为 0.1.0 Beta。
 
-## 创建应用
+## 功能
 
-需要 Node.js 24、Python 3.10+ 和 `.go-version` 指定的 Go。在模板目录执行：
+- 选择共享目录，扫描当前目录或递归扫描子目录；不沿符号链接进入目录。
+- 显示链接位置、原始目标、相对 / 绝对路径、文件 / 文件夹类型。
+- 区分正常、目标缺失、循环、无法访问、共享目录范围外和未完成检查。
+- 按名称或目标搜索，按状态筛选与排序，每页显示 100 条。选中链接后可修改、重命名、删除或查看完整路径。
+- 创建文件或目录的符号链接；支持相对路径和显式允许暂不存在的目标。
+- 修改目标、在原目录内重命名、确认后删除链接。目标内容始终保留。
+- 复选框多选、全选本页、批量删除和右键菜单；操作反馈使用 toast。
+- 中英文、浅色 / 深色 / 跟随 TOS、连接诊断、目录选择器。
+
+## 在 NAS 安装
+
+在 TOS 应用中心手动安装对应 CPU 架构的 Deb 文件：`amd64` 对应 x86_64，`arm64` 对应 aarch64。应用以独立的 `symlink-manager` 服务账号运行，通过 TOS Unix socket 接入，使用当前浏览器的 TOS 会话。
+
+**文件权限需要同时满足两个条件：** 当前登录用户可通过 TOS 访问所选共享目录，以及应用服务账号具有该目录的文件系统权限。扫描需要读取和遍历权限；管理操作需要父目录写入权限。请由 NAS 管理员只给应用账号授予需要管理的共享目录权限。应用不会自动修改共享目录 ACL，也不会以 root 处理文件。
+
+服务使用 `ProtectSystem=full` 保持系统目录只读，同时允许访问 NAS 数据卷；不采用模板的全文件系统只读策略。共享目录边界由每次请求的 TOS `homeList` 和逐级目录检查确定。链接所在目录和祖先必须是真实目录。
+
+正式使用前请在专门的测试共享目录完成 [NAS 验收](docs/DEVELOPMENT.md)。本地测试与跨架构打包不能替代具体 TOS 固件上的权限、会话和服务生命周期验收。
+
+## 本地开发
+
+需要 Node.js 24+、Python 3.10+ 和 `.go-version` 指定的 Go。
 
 ```sh
-python3 scripts/create-app.py ../my-app \
-  --id my-app --name 我的应用 --english-name 'My App' \
-  --publisher 'Your Name' --email owner@your-domain.com \
-  --help-url https://github.com/your-account/my-app
-cd ../my-app
 npm ci
-go mod download
+mkdir -p .local/files
 npm run build
+npm run dev:server -- --root .local/files
 ```
 
-命令创建独立项目并同步 npm 锁文件身份，不复制 Git 历史、node_modules 和构建产物。目标目录必须不存在。App Kit 的两个浏览器包通过固定版本 `v0.3.1` 的 GitHub Release URL 安装，Go module 使用 `v0.3.1`。依赖由 npm 锁文件和 go.sum 固定，项目无需检出库仓库。
+打开 http://127.0.0.1:18947 。开发模式仅监听 loopback，文件访问限制在 `--root` 指定的真实目录内。默认 `.local/files` 必须预先创建。另开终端执行 `npm run dev` 可使用 Vite 热更新（默认后端端口 18947）。
 
-也可复制整个模板，编辑 `app.json` 后执行 `python3 scripts/sync-metadata.py`。应用 ID 用于包名、TOS 账号、socket、API 前缀和偏好存储；安装后应保持稳定。
-
-下游应用可选择开启[模板同步](docs/TEMPLATE_SYNC.md)，通过手动运行的 GitHub Actions 接收公共打包和服务工具更新 PR。默认关闭，首次运行默认预览；应用身份、业务代码和依赖版本由下游维护。
-
-## 本地运行
-
-```sh
-npm run dev:server
-```
-
-打开 http://127.0.0.1:18947 查看生产构建。开发界面时保留该服务，在另一个终端执行 `npm run dev`，打开 http://127.0.0.1:5173 。Vite 转发应用 API，主题与语言默认回退浏览器。
-
-示例 `GET /api/info` 显示连接状态，`POST /api/echo` 校验并返回文字，不保存内容。开发模式仅监听 loopback，并检查 Host 和 Origin。生产单元通过 Unix socket 提供 HTTP，所有 API 先检查凭据、CSRF、来源，再向固定本机 TOS 接口确认会话。
-
-## 验证和打包
+## 验证与打包
 
 ```sh
 npm test
@@ -44,8 +47,15 @@ python3 scripts/build-package.py arm64
 python3 scripts/verify-package.py build/*.deb
 ```
 
-`npm test` 依次运行 `test:template`（生成器、元数据和安装脚本）与 `test:server`（应用路由及平台接入，包含 Go 竞态检测）。两个命令也可单独执行。CI 对模板和独立生成的应用分别使用这一入口。共享库的通用行为由 App Kit 自身测试覆盖。
+输出为 `build/symlink-manager_0.1.0_amd64.deb` 和 `build/symlink-manager_0.1.0_arm64.deb`。CI 还包含漏洞扫描、TOS 官方包格式检查和 Linux systemd 生命周期测试。仓库中的生成器和模板测试保留用于维护公共工具；应用代码与服务权限策略由本项目维护。
 
-安装包位于 `build/<id>_<version>_<arch>.deb`。模板附带占位图标和示例信息，可用于开发测试；发布检查要求填写真实信息并替换图标。新增业务时从 `src/App.vue` 和 `server/app.go` 开始，保留公共上下文及认证边界。标题栏和内容区使用 `TosAppShell`，业务操作图标使用 `@lucide/vue` 的静态导入。
+## 操作边界
 
-详细说明见 [开发与发布](docs/DEVELOPMENT.md) 和 [界面规范](docs/DESIGN.md)。CI 检查模板生成、认证、双架构安装包、漏洞和官方包格式；Linux 真实 systemd 生命周期由专用测试验证。界面由人工审核，检查标题栏、窄屏布局、滚动、主题语言、键盘操作、请求示例和连接诊断。NAS 真机验收在目标设备完成。
+- 一次扫描最多检查 100,000 个条目、收集 5,000 条链接、递归 128 层，时间预算 15 秒；访问失败或触及限制会明确标记结果不完整。可缩小目录范围继续扫描。取消会保留上次结果。
+- 状态是扫描时的快照。外部程序修改目标后需要重新扫描。范围外或无权限检查不能直接视为失效。
+- 新建链接绝不覆盖同名文件。修改、删除和重命名需要匹配上次扫描的链接指纹；操作会再次检查路径。
+- 写入前通过当前用户的 TOS `CreateFolder` 在父目录创建随机名称的空文件以验证创建权限，随后通过已固定的目录描述符删除该文件。异常中断可能留下 `.symlink-manager-…-permission` 空文件。此检查证明目录创建权限；本地修改最终受应用服务账号的 OS 权限约束，并不模拟当前用户的全部细粒度 ACL。具有不同创建 / 删除 ACL 的共享目录需管理员单独评估，应用访问权限应只授予可信任的管理用户。
+- 修改操作将旧链接暂存到同目录的私有工作目录，使用不覆盖的系统调用写入新条目。操作期间链接可能短暂不存在；本工具不承诺原子切换。冲突时尽量恢复原链接；若恢复位置被占用，会报告保留原条目的恢复路径。不会递归删除工作目录或覆盖冲突条目。
+- 不管理硬链接，不读取目标文件内容，不跟随目录链接进行扫描。系统 `@…`、`#recycle` 和应用私有工作目录不在扫描范围内。
+
+平台接口依据 [TOS 7 文件 API](https://help.terra-master.com/cn/developer/api/details)。技术细节和验收步骤见 [开发说明](docs/DEVELOPMENT.md)。

@@ -1,4 +1,4 @@
-module tos-app-template
+module tos-symbolic-link-manager
 
 go 1.26.0
 

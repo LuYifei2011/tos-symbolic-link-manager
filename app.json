@@ -1,10 +1,16 @@
 {
-  "id": "sample-app",
+  "id": "symlink-manager",
   "version": "0.1.0",
-  "name": { "zh-CN": "示例应用", "en-US": "Sample App" },
-  "description": { "zh-CN": "基于 TOS App Kit 的应用起点。", "en-US": "An application starter using TOS App Kit." },
-  "publisher": "Your Name",
-  "email": "you@example.com",
-  "help": "https://example.com/sample-app",
+  "name": {
+    "zh-CN": "符号链接管理器",
+    "en-US": "Symbolic Link Manager"
+  },
+  "description": {
+    "zh-CN": "扫描、创建和管理符号链接。",
+    "en-US": "Scan, create and manage symbolic links."
+  },
+  "publisher": "Lu Yifei",
+  "email": "118034848+LuYifei2011@users.noreply.github.com",
+  "help": "https://github.com/LuYifei2011/tos-symbolic-link-manager",
   "beta": true
 }

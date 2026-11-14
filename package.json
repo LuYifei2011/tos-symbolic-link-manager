@@ -1,5 +1,5 @@
 {
-  "name": "sample-app",
+  "name": "symlink-manager",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,9 +8,10 @@
     "dev": "vite --host 127.0.0.1 --strictPort",
     "dev:server": "sh scripts/dev.sh",
     "build": "python3 scripts/check.py && vue-tsc --noEmit && vite build",
-    "test": "npm run test:template && npm run test:server",
+    "test": "npm run test:client && npm run test:template && npm run test:server",
     "test:template": "python3 -m unittest discover -s tests -p 'test_*.py'",
-    "test:server": "go test -race -count=1 ./..."
+    "test:server": "go test -race -count=1 ./...",
+    "test:client": "node --experimental-strip-types --test tests/link-actions.test.ts"
   },
   "dependencies": {
     "@lucide/vue": "1.72.0",

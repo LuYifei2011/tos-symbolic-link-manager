@@ -1,60 +1,67 @@
-# 开发与发布
+# 开发与 NAS 验收
 
-## 项目结构
+## 结构
 
-| 路径 | 修改内容 |
+- `server/filesystem.go`：有界扫描、目标解析、目录选择 API、链接操作。
+- `server/rename_linux.go` / `rename_darwin.go`：不覆盖的系统重命名与文件时间。
+- `server/platform.go`：TOS 登录、每请求共享目录和祖先校验、写入权限探测。
+- `server/app.go`：来源校验、API 路由和静态资源。
+- `src/App.vue`：扫描、搜索筛选、管理对话框、设置。
+- `app.json`：身份与版本；`scripts/sync-metadata.py` 同步 npm 元数据。
+
+生产 API 保留 TOS Cookie、CSRF 和来源校验。凭据只存在于请求内，不持久化。生产访问共享目录与系统文件访问权限取交集。服务账号的授权由管理员配置。创建权限探测不能替代用户细粒度删除 ACL；应将本管理工具的应用访问权限授予可信任的管理用户。
+
+文件操作固定每一级真实目录描述符，使用 `O_NOFOLLOW`、`fstatat(AT_SYMLINK_NOFOLLOW)`、`readlinkat`、`symlinkat` 和 `unlinkat`。重命名使用 Linux `renameat2(RENAME_NOREPLACE)`，macOS 开发环境使用 `renameatx_np(RENAME_EXCL)`。NAS 内核或文件系统不支持不覆盖重命名时，操作失败，不降级为覆盖式重命名。
+
+原链接先移入随机名称、0700 权限的同目录工作目录，重新核对 inode、mtime、模式和目标指纹，然后完成操作。失败时不覆盖恢复；若源路径被其他进程抢占，返回 `RECOVERY_REQUIRED` 和恢复路径。保留目录需管理员检查后恢复。该机制不保证崩溃后自动恢复或原子更新。
+
+## API
+
+所有业务请求先验证 TOS 会话（开发模式例外）。错误使用 `{ "code": "..." }`，文件权限错误返回 409，避免把单个目录的失败当成整个应用会话失效。
+
+| API | 请求 / 返回 |
 | --- | --- |
-| `app.json` | 应用 ID、版本、中英文名称与描述、发布者、邮箱、帮助链接、beta 状态 |
-| `src/app.ts` | 每应用独立的 App Kit 上下文、API 选项和偏好读取 |
-| `src/App.vue`、`src/style.css` | 业务界面和样式 |
-| `server/app.go` | 业务路由、参数校验和静态资源 |
-| `server/platform.go` | TOS 平台会话验证及错误映射 |
-| `server/main.go` | 开发入口、systemd socket 和退出生命周期 |
-| `packaging/` | 图标、服务单元和安装生命周期脚本 |
-| `scripts/`、`tests/` | 初始化、元数据、打包和验证 |
+| `GET /api/info` | 应用 ID、版本、运行模式 |
+| `GET /api/files/list?path=...` | 无 path 返回共享根；有 path 返回可浏览条目，排除符号链接 |
+| `GET /api/files/stat?path=...` | 目录选择器元数据；仅叶子明确缺失返回 null |
+| `POST /api/scan` | `{path, recursive}`；返回 links、visited、directories、warnings、skipped、partial、reason |
+| `POST /api/links/create` | `{path, target, allowBroken}` |
+| `POST /api/links/update` | `{path, target, fingerprint, allowBroken}` |
+| `POST /api/links/rename` | `{path, name, fingerprint}`；只改同目录名称 |
+| `POST /api/links/delete` | `{path, fingerprint}`；只删除链接 |
 
-`app.json` 编译进 Go 二进制；前端只打包 ID、版本和名称。打包脚本从同一文件生成 config.ini、语言文件、控制元数据、单元名和安装路径，不需要全仓搜索替换。修改身份或版本后执行 `python3 scripts/sync-metadata.py`，同步并提交两个 npm 文件。
+HTTP 请求上下文 25 秒；客户端超时 30 秒。扫描时间预算 15 秒，但正在进行的 TOS 请求仍受请求总超时约束。部分结果明确标记；传输失败时不当作完整结果。扫描不缓存用户目录授权到下一请求。
 
-应用框架通过 UI kit 的 `TosAppShell` 提供，只包含标题栏和内容 main。业务组件放在默认插槽中；可用 icon 插槽传入应用图标，contentClass 和 scroll 参数控制内容布局与滚动。标题栏右侧默认预留 180px，长标题截断，620px 以下整页滚动。通用操作图标静态导入 `@lucide/vue`，按需打包。
+## 自动测试
 
-浏览器公共库使用 App Kit `0.3.1` 的固定版本 Release URL，由 npm 锁文件固定完整性。Go module 同样使用 v0.3.1，由 go.sum 校验。生成的项目无需检出公共库源码。
+`npm test` 运行前端批量删除顺序、失败停止与确认快照测试，以及元数据 / 安装 / 模板同步测试及 Go race 测试。覆盖 API 来源与 CSRF、平台登录响应、目录权限探测、目标路径解析、循环和失效链接、不跟随目录链接、并发创建、同名冲突、过时指纹、目标保留、取消和深度限制。`go vet ./...` 和 `npm run build` 分别检查 Go 和前端。
 
-Go module 名 `tos-app-template` 用于项目内部导入，与 TOS 应用 ID 独立；下游不发布 Go 库时可保留。如果改为自己的模块路径，同时修改 `config.go` 的两个导入位置及测试导入。
+## NAS 验收清单
 
-## 认证与权限
+仅在专门测试共享目录准备文件，不要直接在生产数据上验收：
 
-生产入口默认启用 TOS 模式，没有自动降级为开发模式的路径。`--dev` 仅由本地脚本显式传入；生产 unit 没有该参数，也不监听 TCP。`RequireNonRoot` 检查业务账号，特权 `--prepare-data` 在 systemd 启动前仅初始化该应用的固定数据目录。
+1. 安装对应架构的 Deb，从 TOS 桌面打开，确认会话、浅深主题、中英文和目录浏览。
+2. 给应用账号配置测试目录的读取 / 遍历权限，扫描现有文件、目录、相对链接、绝对链接、失效链接与循环链接。
+3. 给应用账号添加测试目录写入权限，创建链接、修改目标、重命名、删除；核对目标文件内容与哈希不变。
+4. 用普通用户验证无权限目录、只读目录、创建权限与删除权限不同的 ACL；只有可信任管理用户应拥有应用访问权限。确认失效会话和跨来源请求拒绝执行。
+5. 测试同名普通文件、同名目录、同名失效链接的冲突均不会覆盖。扫描后从其他终端更改链接，再执行管理动作应拒绝。
+6. 测试正常与异常停止服务后的随机工作目录；确认错误给出恢复路径、原条目保留。
+7. 测试应用停用、重新启用、升级和卸载；检查 socket 生命周期和数据保留。
 
-每次 API 请求先执行 `tosapp.Authenticate`，再用本机 `http://127.0.0.1:8181/v2/fileManage/homeList` 验证会话。此只读验证方式来自 batch-rename，具有应用对应平台接口的访问要求。若业务采用其他平台 API，应在 `platform.go` 替换为该接口支持的真实会话验证方式，并保留响应格式与登录状态检查。不能仅凭 Cookie 存在就视为已登录。
+NAS 已报告安装阶段的 `216/GROUP`：应用账号存在，但同名组不存在。已修正服务和 socket 的组配置，待目标 NAS 复测。GitHub Actions 的 systemd、官方包检查和漏洞扫描需在实际运行 CI 后记录结果。
 
-会话通过只说明平台当前接受凭据。文件、任务和其他资源的权限仍须由每个业务接口确认；不要直接用应用系统账号访问用户指定的共享路径。模板的 echo 不访问用户文件。响应和日志不输出 Cookie、CSRF 或平台原始正文。平台 URL 由代码固定，不能接收用户指定的转发目标。
+批量删除复用 `POST /api/links/delete`，前端 `src/link-actions.ts` 对确认时的路径和指纹取快照，顺序提交。遇到任何错误即停止，保留已完成计数，刷新列表后通过 toast 告知未完成情况；不会自动重试不确定的删除请求。
 
-前端在会话失效时跳转 `/tos/` 登录页，由平台处理登录后的返回流程。403 时显示权限或来源提示并隐藏应用内容；访问失败后停止业务请求。权限调整后从 TOS 桌面重新打开应用。
+## 服务账号与 socket
 
-## 数据与安装
+服务配置使用 `User=symlink-manager`、`Group=symlink-manager`，socket 使用相同的用户和专用组，权限为 `0660`，与 app-pkg-tools §8.12 / §8.3.1 的组配置一致。
 
-打包遵循 [TOS Deb 开发指南 §8.4 / §8.12 / §8.14](https://github.com/terramaster-tos/tos-app-pkg-tools/blob/main/TOS%207%20Application%20Development%20Guide/08_Deb_Development.md)：`low_version` 使用纯数字 `7.0`，生命周期脚本使用 `#!/bin/bash` 和 0755 权限，服务单元保存在应用的 `init.d` 内。打包时统一脚本、语言和服务配置的 LF 换行。开发脚本 `scripts/dev.sh` 在本机运行。
+目标 NAS 的日志显示启用时无法解析同名组。`postinst configure` 在首次安装和升级时查询专用组，仅在组确实不存在时创建同名系统组，确认非 root GID 后再注册、启用服务。已有组及 GID 保持不变；查询、创建失败直接使安装失败并报告原因。
 
-模板运行时只预留 `/usr/local/<id>/data`，示例请求不写文件。目录由应用账号持有，权限 0700。新增数据应存放在此处，并自行实现原子写入、大小上限与资源权限隔离。
+应用用户仍由 TOS 创建。如果 `postinst` 执行时用户尚不存在，安装完成后等待 TOS 创建用户并启用服务；已有用户时直接启动。安装脚本不更改用户主组或共享目录权限。卸载保留账号组，以免已有文件的 GID 失去对应关系。
 
-安装将 `webui.bz2` 解压到临时目录，再替换 site，升级清理旧静态文件。TOS 可能在 deb 配置之后才创建应用账号，安装脚本会等待；账号就绪后通过应用中心启用应用，由特权 pre-start 初始化数据。生命周期脚本不创建或删除平台账号。remove 和 purge 都保留 data；静态页面、socket 和包内文件被移除。需要彻底删除数据时，由应用产品定义明确操作。
+安装脚本测试覆盖用户尚未创建、已有用户、已有组、重复安装、升级、查询和创建失败，检查组先于 systemctl 操作准备好。Linux 生命周期测试模拟平台在安装后创建用户、使用不同名称的主组，检查服务与 socket 的专用 GID；需在隔离 Linux CI 上运行。
 
-## 自动化与发布
+参考实现：[tos-cadviewer 的 postinst](https://github.com/le3gold/tos-cadviewer/blob/main/DEBIAN/postinst) 在安装阶段补齐缺失组，并记录了 TOS 7.0.1201 上用户延迟创建及 `216/GROUP` 的情况。此处采用其安装阶段分工，失败处理由本项目独立实现。
 
-下游可按[可选模板同步](TEMPLATE_SYNC.md)开启公共工具更新 PR。共享打包脚本与业务代码采用不同的更新范围，合并前需完成应用自己的验证。
-
-`.github/workflows/release.yml` 对 main、PR 和手动运行执行测试、构建与打包。推送 `v<版本>` 标签时额外检查真实发布信息、占位图标和版本匹配，所有检查通过后发布 Deb 与 SHA256SUMS。模板自身的示例身份无法通过发布门槛。
-
-本地发布前：
-
-1. 修改 `app.json` 的真实信息和版本，替换 `packaging/icon.svg`，修改业务描述与 `docs/RELEASE_NOTES.md`。
-2. 执行 `python3 scripts/sync-metadata.py` 和 `python3 scripts/check.py --release --tag v<版本>`。
-3. 完成 README 中的验证，运行 `python3 scripts/check-security.py build/*.deb` 扫描锁定 npm 依赖、双架构 Go 源码和包内二进制。
-4. 在 TOS 真机检查安装、桌面入口、登录过期、主题语言、启动停止、升级和卸载后的数据保留。
-5. 提交并推送，通过 CI 后为同一提交创建签名标签并推送。新版本使用新标签，已有 Release 不覆盖。
-
-Node 使用 24；Go 打包工具链由 `.go-version` 固定并禁止自动切换；漏洞扫描器版本见 `.govulncheck-version`。依赖更新必须同时提交锁文件，App Kit 的两个浏览器包应保持同一版本。
-
-界面由人工审核。运行 `npm run dev:server` 后，按[界面规范](DESIGN.md)检查标题栏和 TOS 窗口控件留白、长标题、桌面与窄屏滚动、主题语言切换及刷新后的偏好保留、键盘焦点和请求示例。模拟服务断开后检查连接诊断及重新连接，并在 TOS 真机复核实际入口和会话状态。
-
-Linux 的 `scripts/test-service.py` 会安装测试包、创建临时系统账号，再检查真实 systemd 服务；它只允许在隔离的 GitHub Actions Linux runner 中以 root 运行，不能在 NAS 执行。
+参考：[官方服务规范 §8.12](https://github.com/terramaster-tos/tos-app-pkg-tools/blob/main/TOS%207%20Application%20Development%20Guide/08_Deb_Development.md#812-systemd-service-specification)、[官方 socket 规范 §8.3.1](https://github.com/terramaster-tos/tos-app-pkg-tools/blob/main/TOS%207%20Application%20Development%20Guide/08_Deb_Development.md#831-webui-internal-open-iframe)。

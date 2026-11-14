@@ -45,14 +45,14 @@ class TemplateSyncTests(unittest.TestCase):
                 "src/App.vue": "custom UI",
                 "server/app.go": "custom API",
                 "packaging/icon.svg": "custom icon",
+                "packaging/service.in": "custom service",
+                "packaging/socket.in": "custom socket",
                 "README.md": "custom documentation",
                 ".github/workflows/release.yml": "custom CI",
                 "scripts/business.py": "app-only script",
             }
             shared_files = {
                 "scripts/build-package.py": "old packaging",
-                "packaging/service.in": "old service",
-                "packaging/socket.in": "old socket",
                 "packaging/debian/postinst.in": "old installer",
                 ".go-version": "old toolchain",
             }

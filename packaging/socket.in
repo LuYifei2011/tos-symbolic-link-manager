@@ -3,6 +3,7 @@ Description=@APP_ID@ platform API socket
 PartOf=@APP_ID@.service
 
 [Socket]
+TimeoutSec=30
 ListenStream=/var/api/@APP_ID@.sock
 SocketUser=@APP_ID@
 SocketGroup=@APP_ID@

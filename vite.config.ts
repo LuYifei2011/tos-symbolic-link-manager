@@ -13,6 +13,11 @@ export default defineConfig({
   }],
   server: {
     port: 5173,
+    watch: {
+      // Keep runtime fixtures (including cyclic links) and package output out of watching.
+      ignored: ['**/.local/**', '**/build/**'],
+      followSymlinks: false,
+    },
     proxy: { [`/v2/proxy/${manifest.id}/api`]: 'http://127.0.0.1:18947' },
   },
   build: { target: 'es2022', sourcemap: false, assetsInlineLimit: 0 },

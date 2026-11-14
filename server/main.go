@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -11,7 +12,7 @@ import (
 	"syscall"
 
 	tosapp "github.com/LuYifei2011/tos-app-kit/go"
-	appconfig "tos-app-template"
+	appconfig "tos-symbolic-link-manager"
 )
 
 func main() {
@@ -27,6 +28,7 @@ func run() error {
 	listen := flag.String("listen", "127.0.0.1:18947", "development listener")
 	web := flag.String("web", filepath.Join(root, "site"), "static web directory")
 	prepare := flag.Bool("prepare-data", false, "initialize application data as a privileged pre-start step")
+	devRoot := flag.String("root", ".local/files", "development filesystem root")
 	flag.Parse()
 	if *prepare {
 		return tosapp.PrepareAppData(config.ID)
@@ -47,7 +49,24 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	app := &application{config: config, web: *web, dev: *dev, verify: verifySession(tosapp.NewPlatformClient())}
+	var roots []string
+	if *dev {
+		p, e := filepath.Abs(*devRoot)
+		if e != nil {
+			return e
+		}
+		p, e = filepath.EvalSymlinks(p)
+		if e != nil {
+			return fmt.Errorf("development root: %w (create it first or pass --root)", e)
+		}
+		d, e := openDirectory(p)
+		if e != nil {
+			return e
+		}
+		d.Close()
+		roots = []string{p}
+	}
+	app := &application{roots: roots, client: tosapp.NewPlatformClient(), config: config, web: *web, dev: *dev, verify: verifySession(tosapp.NewPlatformClient())}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	log.Printf("%s %s listening on %s (development=%t)", config.ID, config.Version, listener.Addr(), *dev)

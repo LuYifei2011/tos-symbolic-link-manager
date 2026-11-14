@@ -1,3 +1,4 @@
+import configparser
 import importlib.util
 import json
 from pathlib import Path
@@ -16,6 +17,17 @@ spec.loader.exec_module(creator)
 
 
 class TemplateTests(unittest.TestCase):
+    def test_units_use_dedicated_group(self):
+        service, socket = configparser.ConfigParser(), configparser.ConfigParser()
+        service.read(ROOT / "packaging/service.in")
+        socket.read(ROOT / "packaging/socket.in")
+        self.assertEqual(service["Service"]["User"], "@APP_ID@")
+        self.assertEqual(service["Service"]["Group"], "@APP_ID@")
+        self.assertEqual(socket["Socket"]["SocketUser"], "@APP_ID@")
+        self.assertEqual(socket["Socket"]["SocketGroup"], "@APP_ID@")
+        self.assertNotIn("ExecStartPre", socket["Socket"], "identity setup belongs in postinst")
+        self.assertEqual(socket["Socket"]["SocketMode"], "0660")
+
     def test_manifest(self):
         check()
         for invalid in ("tos-demo", "../escape", "-app", "abc;touch", "UPPER", "a" * 25, "last-", "root", "admin", "docker"):
@@ -83,7 +95,7 @@ class TemplateTests(unittest.TestCase):
             subprocess.run(["tar", "-cjf", str(app / "webui.bz2"), "-C", str(root / "web"), "."], check=True)
             fake_bin = root / "bin"
             fake_bin.mkdir()
-            for name, script in (("systemctl", "exit 0"), ("id", "exit 1")):
+            for name, script in (("systemctl", "exit 0"), ("id", "exit 1"), ("getent", "echo test-app:x:823:"), ("groupadd", "exit 99")):
                 path = fake_bin / name
                 path.write_text("#!/bin/sh\n" + script + "\n")
                 path.chmod(0o755)
