@@ -52,7 +52,9 @@ def main():
     try:
         run("dpkg", "--install", package)
         assert not (app / "data").exists(), "data initialization must wait for the TOS account"
-        assert (app / "site/index.html").is_file()
+        for name in ("site", "webui"):
+            assert (app / name / "index.html").is_file()
+        assert (app / "site/index.html").read_bytes() == (app / "webui/index.html").read_bytes()
         # postinst must provision the group before the platform creates its user.
         installed_gid = grp.getgrnam(app_id).gr_gid
         assert installed_gid > 0
@@ -103,15 +105,20 @@ def main():
         run("systemctl", "reset-failed", service, sock_unit)
         run("systemctl", "start", service)
         wait_state(service, "active")
-        (app / "site/stale.js").write_text("old frontend")
+        for name in ("site", "webui"):
+            (app / name / "index.html").write_text("old frontend")
+            (app / name / "stale.js").write_text("old resource")
         run("dpkg", "--install", package)
         wait_state(service, "active")
         assert grp.getgrnam(app_id).gr_gid == installed_gid
-        assert not (app / "site/stale.js").exists()
+        for name in ("site", "webui"):
+            assert not (app / name / "stale.js").exists()
+            assert (app / name / "index.html").read_text() != "old frontend"
+        assert (app / "site/index.html").read_bytes() == (app / "webui/index.html").read_bytes()
         assert record.read_text() == "user data"
         run("dpkg", "--remove", app_id)
         run("dpkg", "--purge", app_id)
-        assert not (app / "site").exists() and not socket_path.exists()
+        assert not (app / "site").exists() and not (app / "webui").exists() and not socket_path.exists()
         assert record.read_text() == "user data"
         assert run("systemctl", "is-enabled", service, check=False).returncode != 0
         assert run("systemctl", "is-enabled", sock_unit, check=False).returncode != 0

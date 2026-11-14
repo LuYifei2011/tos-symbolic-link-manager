@@ -88,8 +88,10 @@ class TemplateTests(unittest.TestCase):
             app.mkdir()
             (app / "data").mkdir()
             (app / "data/keep").write_text("user data")
-            (app / "site").mkdir()
-            (app / "site/index.html").write_text("old")
+            for name in ("site", "webui"):
+                (app / name).mkdir()
+                (app / name / "index.html").write_text("old")
+                (app / name / "stale.js").write_text("old resource")
             (root / "web").mkdir()
             (root / "web/index.html").write_text("new")
             subprocess.run(["tar", "-cjf", str(app / "webui.bz2"), "-C", str(root / "web"), "."], check=True)
@@ -105,14 +107,20 @@ class TemplateTests(unittest.TestCase):
             installer = root / "postinst"
             installer.write_text(source)
             subprocess.run(["/bin/bash", str(installer), "configure"], check=True, env=env, capture_output=True)
-            self.assertEqual((app / "site/index.html").read_text(), "new")
+            for name in ("site", "webui"):
+                self.assertEqual((app / name / "index.html").read_text(), "new")
+                self.assertFalse((app / name / "stale.js").exists())
             self.assertEqual((app / "data/keep").read_text(), "user data")
-            (app / "site/index.html").unlink()
-            (app / "site").rmdir()
-            (app / "site").symlink_to(root / "web", target_is_directory=True)
-            result = subprocess.run(["/bin/bash", str(installer), "configure"], env=env, capture_output=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual((root / "web/index.html").read_text(), "new")
+            for name in ("site", "webui"):
+                (app / name / "index.html").unlink()
+                (app / name).rmdir()
+                (app / name).symlink_to(root / "web", target_is_directory=True)
+                result = subprocess.run(["/bin/bash", str(installer), "configure"], env=env, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((root / "web/index.html").read_text(), "new")
+                (app / name).unlink()
+                (app / name).mkdir()
+                (app / name / "index.html").write_text("new")
 
 
 if __name__ == "__main__":
