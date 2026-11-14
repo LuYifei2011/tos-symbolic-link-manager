@@ -1,0 +1,10 @@
+{
+  "id": "sample-app",
+  "version": "0.1.0",
+  "name": { "zh-CN": "示例应用", "en-US": "Sample App" },
+  "description": { "zh-CN": "基于 TOS App Kit 的应用起点。", "en-US": "An application starter using TOS App Kit." },
+  "publisher": "Your Name",
+  "email": "you@example.com",
+  "help": "https://example.com/sample-app",
+  "beta": true
+}

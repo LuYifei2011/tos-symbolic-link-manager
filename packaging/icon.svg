@@ -1,0 +1,5 @@
+<!-- Placeholder application icon. Replace before publishing your application. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect x="48" y="48" width="416" height="416" rx="32" fill="#236eaf"/>
+  <path d="M144 160h224v192H144zM144 208h224M192 248h128M192 288h96" fill="none" stroke="#fff" stroke-width="20" stroke-linejoin="round"/>
+</svg>

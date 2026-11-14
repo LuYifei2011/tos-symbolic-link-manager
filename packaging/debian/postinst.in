@@ -1,0 +1,34 @@
+#!/bin/bash
+set -eu
+app=/usr/local/@APP_ID@
+case "${1:-}" in
+configure)
+    for name in data site site.next site.previous; do
+        if [ -L "$app/$name" ] || { [ -e "$app/$name" ] && [ ! -d "$app/$name" ]; }; then
+            echo "@APP_ID@: $app/$name must be a real directory" >&2
+            exit 1
+        fi
+    done
+    if [ -d "$app/site.previous" ] && [ ! -d "$app/site" ]; then mv "$app/site.previous" "$app/site"; fi
+    rm -rf -- "$app/site.next" "$app/site.previous"
+    install -d -m 0755 "$app/site.next"
+    trap 'rm -rf -- "$app/site.next"' 0
+    tar -xjf "$app/webui.bz2" -C "$app/site.next"
+    test -f "$app/site.next/index.html"
+    if [ -d "$app/site" ]; then mv "$app/site" "$app/site.previous"; fi
+    if ! mv "$app/site.next" "$app/site"; then
+        if [ -d "$app/site.previous" ]; then mv "$app/site.previous" "$app/site"; fi
+        exit 1
+    fi
+    rm -rf -- "$app/site.previous"
+    trap - 0
+    systemctl daemon-reload
+    systemctl enable "$app/init.d/@APP_ID@.service" "$app/init.d/@APP_ID@.socket"
+    if id @APP_ID@ >/dev/null 2>&1; then
+        systemctl reset-failed @APP_ID@.service @APP_ID@.socket
+        systemctl start @APP_ID@.service
+    else
+        echo "@APP_ID@: waiting for the TOS application account; enable the app after account creation" >&2
+    fi
+    ;;
+esac

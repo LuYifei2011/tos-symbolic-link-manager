@@ -1,0 +1,12 @@
+#!/bin/bash
+set -eu
+case "${1:-}" in
+remove|deconfigure|upgrade)
+    for name in @APP_ID@.service @APP_ID@.socket; do
+        if [ "$(systemctl show --property=LoadState --value "$name")" != not-found ]; then
+            systemctl stop "$name"
+            if [ "$1" != upgrade ]; then systemctl disable "$name"; fi
+        fi
+    done
+    ;;
+esac

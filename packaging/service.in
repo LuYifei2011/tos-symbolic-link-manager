@@ -1,0 +1,34 @@
+[Unit]
+Description=@APP_ID@ service
+Requires=@APP_ID@.socket
+After=@APP_ID@.socket
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=@APP_ID@
+Group=@APP_ID@
+WorkingDirectory=/usr/local/@APP_ID@
+ExecStartPre=+/usr/local/@APP_ID@/bin/@APP_ID@ --prepare-data
+ExecStart=/usr/local/@APP_ID@/bin/@APP_ID@ --web /usr/local/@APP_ID@/site
+TimeoutStartSec=30
+TimeoutStopSec=35
+UMask=0077
+Environment=GOMEMLIMIT=192MiB
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=-/usr/local/@APP_ID@/data
+ProtectHome=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+MemoryMax=256M
+CPUQuota=50%
+LimitNOFILE=4096
+TasksMax=128
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

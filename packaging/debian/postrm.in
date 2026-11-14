@@ -1,0 +1,17 @@
+#!/bin/bash
+set -eu
+case "${1:-}" in
+remove|purge)
+    app=/usr/local/@APP_ID@
+    for name in site site.next site.previous; do
+        if [ -L "$app/$name" ]; then
+            rm -f -- "$app/$name"
+        elif [ -d "$app/$name" ]; then
+            rm -rf -- "$app/$name"
+        fi
+    done
+    if [ -S /var/api/@APP_ID@.sock ] || [ -L /var/api/@APP_ID@.sock ]; then rm -f /var/api/@APP_ID@.sock; fi
+    systemctl daemon-reload
+    ;;
+esac
+# Application data survives remove and purge; see docs/DEVELOPMENT.md.

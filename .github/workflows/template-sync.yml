@@ -1,0 +1,55 @@
+name: Template sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview changes without pushing a branch or opening a PR
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: template-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      vars.TEMPLATE_SYNC_ENABLED == 'true' &&
+      github.repository != 'LuYifei2011/tos-app-template' &&
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Propose shared template updates
+        uses: AndreasAugustin/actions-template-sync@6e1d0089686f8940604fc15baae62367bf6ee860 # v2.6.0
+        with:
+          source_repo_path: LuYifei2011/tos-app-template
+          source_branch: main
+          upstream_branch: ${{ github.event.repository.default_branch }}
+          source_gh_token: ${{ github.token }}
+          target_gh_token: ${{ secrets.TEMPLATE_SYNC_TOKEN || github.token }}
+          is_dry_run: ${{ inputs.dry_run }}
+          pr_labels: template-sync
+          pr_title: 'chore: sync shared TOS application tooling'
+          pr_commit_msg: 'chore(template): sync shared TOS application tooling'
+          pr_body: |
+            Update shared application tooling from ${SOURCE_REPO} at ${TEMPLATE_GIT_HASH}.
+
+            Review the diff and run the application's build, tests and package checks before merging.
+            Dependency upgrades and application-specific changes are maintained separately.
+      - name: Summarize changes
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: git diff --stat "origin/$DEFAULT_BRANCH" HEAD | tee -a "$GITHUB_STEP_SUMMARY"
