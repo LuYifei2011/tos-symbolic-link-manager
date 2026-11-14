@@ -2,8 +2,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { TosApiError } from 'tos-app-core'
 import { useTosApp } from 'tos-app-core/vue'
-import { TosAppShell, TosConnectionReport, TosPreferencesForm, TosPathInput } from 'tos-app-ui-kit'
-import { Link, FolderSearch, Plus, Search, Pencil, Trash2, Type, X, Settings, ArrowRight, Square, RefreshCw, Folder, Info, ChevronDown, ArrowUp, ArrowDown, CheckCircle2, AlertCircle } from '@lucide/vue'
+import { TosAppShell, TosPreferencesForm, TosPathInput } from 'tos-app-ui-kit'
+import { Link, FolderSearch, Plus, Search, Pencil, Trash2, Type, X, Settings, ArrowRight, Square, Folder, Info, ChevronDown, ArrowUp, ArrowDown, CheckCircle2, AlertCircle } from '@lucide/vue'
 import { metadata } from './app'
 import { deleteLinks } from './link-actions'
 import appIcon from '../packaging/icon.svg'
@@ -264,7 +264,10 @@ onMounted(() => { connect(); document.addEventListener('pointerdown', outsideMen
    </footer>
   </div>
   <dialog ref="preferences" class="preferences-dialog" aria-labelledby="preferences-title" @close="preferencesOpen = false">
-   <div class="editor"><header class="dialog-heading"><h2 id="preferences-title">{{ text('设置', 'Settings') }}</h2><button class="icon-button" :aria-label="text('关闭', 'Close')" @click="preferences?.close()"><X :size="18" /></button></header><TosPreferencesForm /><div class="connection-settings"><span class="link-status" :class="connected ? 'valid' : 'inaccessible'"><span class="status-dot" aria-hidden="true"></span>{{ connected ? text('服务已连接', 'Connected') : text('尚未连接', 'Disconnected') }}</span><button class="button secondary" :disabled="connecting" @click="connect"><RefreshCw :size="15" />{{ text('重新连接', 'Reconnect') }}</button></div><TosConnectionReport /></div>
+   <div class="editor">
+    <header class="dialog-heading"><h2 id="preferences-title">{{ text('语言与主题', 'Language & theme') }}</h2><button class="icon-button" :aria-label="text('关闭设置', 'Close settings')" @click="preferences?.close()"><X :size="18" /></button></header>
+    <TosPreferencesForm />
+   </div>
   </dialog>
   <dialog ref="modal" aria-labelledby="dialog-title" @cancel="saving ? $event.preventDefault() : close()">
    <form class="editor" @submit.prevent="save">

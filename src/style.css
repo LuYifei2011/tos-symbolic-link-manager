@@ -149,7 +149,7 @@ button:disabled { opacity: .42; cursor: not-allowed; }
 dialog:not(.tos-file-dialog):not(.tos-overwrite-dialog) { padding: 0; border: 1px solid var(--line); border-radius: 7px; background: var(--dialog); color: var(--text); width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); box-shadow: 0 18px 65px #0003; }
 dialog::backdrop { background: var(--backdrop); }
 .editor { padding: 22px; display: flex; flex-direction: column; gap: 16px; }
-.dialog-heading, .target-heading, .dialog-footer, .connection-settings { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dialog-heading, .target-heading, .dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .dialog-heading h2 { font-size: 16px; font-weight: 600; }
 .editor .field-label { display: flex; flex-direction: column; gap: 7px; }
 .editor .field-label input { width: 100%; }
@@ -164,7 +164,6 @@ dialog::backdrop { background: var(--backdrop); }
 .dialog-footer { justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 4px; }
 .delete-button { color: var(--error); border: 1px solid var(--error-border); background: var(--error-bg); }
 .editor .error { padding: 10px 12px; border-radius: 4px; overflow-wrap: anywhere; }
-.connection-settings { border-top: 1px solid var(--line); padding-top: 16px; }
 @media (max-width: 850px) {
   .rename-command span { display: none; }
   .search { width: 180px; }
