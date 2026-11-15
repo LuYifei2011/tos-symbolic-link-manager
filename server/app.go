@@ -53,6 +53,10 @@ func (a *application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	p := tosapp.StripAppPrefix(r.URL.Path, a.config.ID)
 	if p != "/api" && !strings.HasPrefix(p, "/api/") {
+		if !a.dev {
+			http.NotFound(w, r)
+			return
+		}
 		a.serveStatic(w, r, p)
 		return
 	}

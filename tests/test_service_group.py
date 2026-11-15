@@ -43,11 +43,11 @@ class InstallGroupTests(unittest.TestCase):
             first_calls = calls.read_text() if calls.exists() else ''
             second = None
             if first.returncode == 0:
-                self.assertEqual((app / 'site/index.html').read_text(), 'frontend')
-                (app / 'site/stale.js').write_text('old')
+                self.assertEqual((app / 'webui/index.html').read_text(), 'frontend')
+                (app / 'webui/stale.js').write_text('old')
                 env['ACCOUNT_READY'] = '1'
                 second = subprocess.run(['/bin/bash', str(installer), 'configure', '0.1.0'], env=env, capture_output=True, text=True)
-                self.assertFalse((app / 'site/stale.js').exists())
+                self.assertFalse((app / 'webui/stale.js').exists())
             self.assertEqual((app / 'data/keep').read_text(), 'user data')
             return first, second, first_calls, calls.read_text() if calls.exists() else ''
 

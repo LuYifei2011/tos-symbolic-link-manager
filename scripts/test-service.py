@@ -52,9 +52,7 @@ def main():
     try:
         run("dpkg", "--install", package)
         assert not (app / "data").exists(), "data initialization must wait for the TOS account"
-        for name in ("site", "webui"):
-            assert (app / name / "index.html").is_file()
-        assert (app / "site/index.html").read_bytes() == (app / "webui/index.html").read_bytes()
+        assert (app / "webui/index.html").is_file()
         # postinst must provision the group before the platform creates its user.
         installed_gid = grp.getgrnam(app_id).gr_gid
         assert installed_gid > 0
@@ -79,6 +77,15 @@ def main():
         assert response.status == 401, "socket must enforce authentication"
         response.read()
         connection.close()
+        static = http.client.HTTPConnection("localhost", timeout=5)
+        static.sock = socket.socket(socket.AF_UNIX)
+        static.sock.settimeout(5)
+        static.sock.connect(str(socket_path))
+        static.request("GET", "/")
+        page = static.getresponse()
+        assert page.status == 404
+        assert (app / "webui/index.html").read_bytes() not in page.read()
+        static.close()
         data = app / "data"
         assert data.stat().st_uid == account.pw_uid and data.stat().st_mode & 0o777 == 0o700
         pid = int(run("systemctl", "show", "--property=MainPID", "--value", service).stdout)
@@ -105,20 +112,18 @@ def main():
         run("systemctl", "reset-failed", service, sock_unit)
         run("systemctl", "start", service)
         wait_state(service, "active")
-        for name in ("site", "webui"):
-            (app / name / "index.html").write_text("old frontend")
-            (app / name / "stale.js").write_text("old resource")
+        (app / "webui").mkdir(exist_ok=True)
+        (app / "webui" / "index.html").write_text("old frontend")
+        (app / "webui" / "stale.js").write_text("old resource")
         run("dpkg", "--install", package)
         wait_state(service, "active")
         assert grp.getgrnam(app_id).gr_gid == installed_gid
-        for name in ("site", "webui"):
-            assert not (app / name / "stale.js").exists()
-            assert (app / name / "index.html").read_text() != "old frontend"
-        assert (app / "site/index.html").read_bytes() == (app / "webui/index.html").read_bytes()
+        assert not (app / "webui/stale.js").exists()
+        assert (app / "webui/index.html").read_text() != "old frontend"
         assert record.read_text() == "user data"
         run("dpkg", "--remove", app_id)
         run("dpkg", "--purge", app_id)
-        assert not (app / "site").exists() and not (app / "webui").exists() and not socket_path.exists()
+        assert not (app / "webui").exists() and not socket_path.exists()
         assert record.read_text() == "user data"
         assert run("systemctl", "is-enabled", service, check=False).returncode != 0
         assert run("systemctl", "is-enabled", sock_unit, check=False).returncode != 0

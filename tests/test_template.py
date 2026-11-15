@@ -88,10 +88,9 @@ class TemplateTests(unittest.TestCase):
             app.mkdir()
             (app / "data").mkdir()
             (app / "data/keep").write_text("user data")
-            for name in ("site", "webui"):
-                (app / name).mkdir()
-                (app / name / "index.html").write_text("old")
-                (app / name / "stale.js").write_text("old resource")
+            (app / "webui").mkdir()
+            (app / "webui" / "index.html").write_text("old")
+            (app / "webui" / "stale.js").write_text("old resource")
             (root / "web").mkdir()
             (root / "web/index.html").write_text("new")
             subprocess.run(["tar", "-cjf", str(app / "webui.bz2"), "-C", str(root / "web"), "."], check=True)
@@ -107,20 +106,19 @@ class TemplateTests(unittest.TestCase):
             installer = root / "postinst"
             installer.write_text(source)
             subprocess.run(["/bin/bash", str(installer), "configure"], check=True, env=env, capture_output=True)
-            for name in ("site", "webui"):
-                self.assertEqual((app / name / "index.html").read_text(), "new")
-                self.assertFalse((app / name / "stale.js").exists())
+            self.assertEqual((app / "webui/index.html").read_text(), "new")
+            self.assertFalse((app / "webui/stale.js").exists())
             self.assertEqual((app / "data/keep").read_text(), "user data")
-            for name in ("site", "webui"):
-                (app / name / "index.html").unlink()
-                (app / name).rmdir()
-                (app / name).symlink_to(root / "web", target_is_directory=True)
-                result = subprocess.run(["/bin/bash", str(installer), "configure"], env=env, capture_output=True)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual((root / "web/index.html").read_text(), "new")
-                (app / name).unlink()
-                (app / name).mkdir()
-                (app / name / "index.html").write_text("new")
+            if (app / "webui").exists():
+                (app / "webui" / "index.html").unlink()
+                (app / "webui").rmdir()
+            (app / "webui").symlink_to(root / "web", target_is_directory=True)
+            result = subprocess.run(["/bin/bash", str(installer), "configure"], env=env, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual((root / "web/index.html").read_text(), "new")
+            (app / "webui").unlink()
+            (app / "webui").mkdir()
+            (app / "webui" / "index.html").write_text("new")
 
 
 if __name__ == "__main__":

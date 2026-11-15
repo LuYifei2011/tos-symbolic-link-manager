@@ -61,6 +61,9 @@ def verify(package):
         }
         for kind in ("service", "socket"):
             assert get(f"init.d/{app_id}.{kind}").decode() == (ROOT / "packaging" / f"{kind}.in").read_text().replace("@APP_ID@", app_id)
+        service = get(f"init.d/{app_id}.service").decode()
+        start_args = next(line for line in service.splitlines() if line.startswith("ExecStart=")).split()[1:]
+        assert not any(arg.startswith("-") and arg.lstrip("-").split("=", 1)[0] in {"web", "dev"} for arg in start_args), "production unit enables development static serving"
         with tarfile.open(fileobj=io.BytesIO(get("webui.bz2")), mode="r:bz2") as web:
             files = {item.name: web.extractfile(item).read() for item in web if item.isfile()}
             assert files == {str(item.relative_to(ROOT / "dist")): item.read_bytes() for item in (ROOT / "dist").rglob("*") if item.is_file()}

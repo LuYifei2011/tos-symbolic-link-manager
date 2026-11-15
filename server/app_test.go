@@ -31,22 +31,47 @@ func request(method, path, body string) *http.Request {
 	return r
 }
 
-func TestMountedRoutesAndStaticBoundaries(t *testing.T) {
+func TestMountedAPIRoutes(t *testing.T) {
 	a := testApp(t)
-	for _, path := range []string{"/", "/other-app/", "/v2/proxy/other-app/", "/api/info", "/other-app/api/info", "/v2/proxy/other-app/api/info"} {
+	for _, path := range []string{"/api/info", "/other-app/api/info", "/v2/proxy/other-app/api/info"} {
 		w := httptest.NewRecorder()
 		a.ServeHTTP(w, request("GET", path, ""))
 		if w.Code != 200 || w.Header().Get("X-TOS-App-Version") != "1.2.3" {
 			t.Fatalf("%s: %d %s", path, w.Code, w.Body.String())
 		}
 	}
+}
+
+func TestProductionDoesNotServeStaticFiles(t *testing.T) {
+	a := testApp(t)
+	for _, method := range []string{"GET", "HEAD", "POST"} {
+		for _, path := range []string{"/", "/index.html", "/other-app/", "/v2/proxy/other-app/", "/other-app-evil/api/info"} {
+			w := httptest.NewRecorder()
+			a.ServeHTTP(w, request(method, path, ""))
+			if w.Code != http.StatusNotFound || strings.Contains(w.Body.String(), "<h1>template</h1>") {
+				t.Fatalf("%s %s: %d %s", method, path, w.Code, w.Body.String())
+			}
+		}
+	}
+}
+
+func TestDevelopmentStaticFiles(t *testing.T) {
+	a := testApp(t)
+	a.dev = true
 	if err := os.Mkdir(filepath.Join(a.web, "private"), 0700); err != nil {
 		t.Fatal(err)
 	}
+	for _, path := range []string{"/", "/other-app/", "/v2/proxy/other-app/"} {
+		w := httptest.NewRecorder()
+		a.ServeHTTP(w, httptest.NewRequest("GET", "http://127.0.0.1:18947"+path, nil))
+		if w.Code != http.StatusOK || w.Body.String() != "<h1>template</h1>" {
+			t.Fatalf("%s: %d %s", path, w.Code, w.Body.String())
+		}
+	}
 	for _, path := range []string{"/private/", "/missing", "/other-app-evil/api/info"} {
 		w := httptest.NewRecorder()
-		a.ServeHTTP(w, request("GET", path, ""))
-		if w.Code != 404 {
+		a.ServeHTTP(w, httptest.NewRequest("GET", "http://127.0.0.1:18947"+path, nil))
+		if w.Code != http.StatusNotFound {
 			t.Fatalf("%s: %d", path, w.Code)
 		}
 	}

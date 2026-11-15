@@ -26,7 +26,7 @@ func run() error {
 	root := filepath.Join("/usr/local", config.ID)
 	dev := flag.Bool("dev", false, "use loopback development mode without TOS login")
 	listen := flag.String("listen", "127.0.0.1:18947", "development listener")
-	web := flag.String("web", filepath.Join(root, "site"), "static web directory")
+	web := flag.String("web", "dist", "development static web directory")
 	prepare := flag.Bool("prepare-data", false, "initialize application data as a privileged pre-start step")
 	devRoot := flag.String("root", ".local/files", "development filesystem root")
 	flag.Parse()
