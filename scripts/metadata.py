@@ -87,7 +87,7 @@ def tos_config(config, arch):
         "id": app_id, "icon": f"/images/icons/{app_id}.svg", "publisher": config["publisher"],
         "exec": True, "type": "iframe", "path": f"/{app_id}/", "resize": True, "maxmin": True,
         "width": 960, "height": 600, "version": config["version"], "recommend": False,
-        "beta": config["beta"], "low_version": "7.0", "category": ["Utilities"], "relation": [],
+        "beta": config["beta"], "low_version": "TOS7.0", "category": ["Utilities"], "relation": [],
         "platform": {"amd64": "x86_64", "arm64": "aarch64"}[arch], "application_type": "deb",
         "system_id": app_id, "package": app_id, "user": app_id, "allow_open_in_mobile": False, "help": config["help"],
     }

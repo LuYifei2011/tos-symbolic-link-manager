@@ -46,6 +46,7 @@ def verify(package):
             assert ".." not in Path(member.name).parts and not member.issym() and not member.islnk()
         get = lambda name: tar.extractfile(base + name).read()
         assert json.loads(get("config.ini")) == tos_config(config, arch)
+        assert json.loads(get("config.ini"))["low_version"] == "TOS7.0"
         assert get(f"{app_id}.lang").decode() == language_file(config)
         assert get(f"images/icons/{app_id}.svg") == (ROOT / "packaging/icon.svg").read_bytes()
         binary = get(f"bin/{app_id}")
@@ -62,6 +63,7 @@ def verify(package):
         for kind in ("service", "socket"):
             assert get(f"init.d/{app_id}.{kind}").decode() == (ROOT / "packaging" / f"{kind}.in").read_text().replace("@APP_ID@", app_id)
         service = get(f"init.d/{app_id}.service").decode()
+        assert "NoNewPrivileges=true\n" in service
         start_args = next(line for line in service.splitlines() if line.startswith("ExecStart=")).split()[1:]
         assert not any(arg.startswith("-") and arg.lstrip("-").split("=", 1)[0] in {"web", "dev"} for arg in start_args), "production unit enables development static serving"
         with tarfile.open(fileobj=io.BytesIO(get("webui.bz2")), mode="r:bz2") as web:

@@ -70,6 +70,8 @@ NAS 已报告安装阶段的 `216/GROUP`：应用账号存在，但同名组不�
 
 ## 服务账号与 socket
 
+`low_version` 为必填的 `TOS7.0`，与 [官方 issue #10 回复](https://github.com/terramaster-tos/tos-app-pkg-tools/issues/10#issuecomment-6876407532) 一致。
+
 服务配置使用 `User=symlink-manager`、`Group=symlink-manager`，socket 使用相同的用户和专用组，权限为 `0660`，与 app-pkg-tools §8.12 / §8.3.1 的组配置一致。
 
 目标 NAS 的日志显示启用时无法解析同名组。`postinst configure` 在首次安装和升级时查询专用组，仅在组确实不存在时创建同名系统组，确认非 root GID 后再注册、启用服务。已有组及 GID 保持不变；查询、创建失败直接使安装失败并报告原因。
